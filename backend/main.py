@@ -2,17 +2,16 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pypdf import PdfReader
 from io import BytesIO
-from email.message import EmailMessage
 from dotenv import load_dotenv
 from openai import OpenAI
-import smtplib
 import os
 import requests
 import re
 import json
-
+import resend
+import base64
 load_dotenv()
-
+resend.api_key = os.getenv("RESEND_API_KEY")
 app = FastAPI(title="AutoJob Resume Apply AI")
 
 app.add_middleware(
@@ -222,41 +221,30 @@ async def send_resume(
     if "file" not in resume_store:
         raise HTTPException(status_code=400, detail="Please upload resume first")
 
-    email_user = os.getenv("EMAIL_USER")
-    email_pass = os.getenv("EMAIL_PASS")
-
-    if not email_user or not email_pass:
-        raise HTTPException(status_code=500, detail="Email credentials missing")
-
-    msg = EmailMessage()
-    msg["Subject"] = f"Application for {role}"
-    msg["From"] = email_user
-    msg["To"] = hr_email
-
-    msg.set_content(f"""
-Dear Hiring Team,
-
-I am interested in applying for the {role} position at {company}.
-
-Please find my resume attached for your review.
-
-Thank you for your time and consideration.
-
-Best regards,
-Mohammed Younus
-""")
-
-    msg.add_attachment(
-        resume_store["file"],
-        maintype="application",
-        subtype="pdf",
-        filename=resume_store["filename"],
-    )
+    if not os.getenv("RESEND_API_KEY"):
+        raise HTTPException(status_code=500, detail="RESEND_API_KEY missing")
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(email_user, email_pass)
-            smtp.send_message(msg)
+        encoded_file = base64.b64encode(resume_store["file"]).decode("utf-8")
+
+        resend.Emails.send({
+            "from": "AutoJob AI <onboarding@resend.dev>",
+            "to": [hr_email],
+            "subject": f"Application for {role}",
+            "html": f"""
+                <p>Dear Hiring Team,</p>
+                <p>I am interested in applying for the <b>{role}</b> position at <b>{company}</b>.</p>
+                <p>Please find my resume attached for your review.</p>
+                <p>Thank you for your time and consideration.</p>
+                <p>Best regards,<br/>Mohammed Younus</p>
+            """,
+            "attachments": [
+                {
+                    "filename": resume_store["filename"],
+                    "content": encoded_file,
+                }
+            ],
+        })
 
         return {
             "success": True,
