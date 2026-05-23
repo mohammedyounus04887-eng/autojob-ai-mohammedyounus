@@ -17,62 +17,138 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL;
+type Job = {
+  title: string;
+  company: string;
+  link: string;
+  snippet: string;
+  hr_email?: string;
+  source?: string;
+};
+
+type AtsResult = {
+  ats_score: number;
+  match_level: string;
+  summary: string;
+  strengths: string[];
+  missing_keywords: string[];
+  improvements: string[];
+  recommended_roles?: string[];
+};
+
+type InfoCardProps = {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+};
+
+type ResultBoxProps = {
+  title: string;
+  items?: string[];
+};
+
+const API =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://autojob-ai-mohammedyounus.onrender.com";
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [role, setRole] = useState("");
   const [location, setLocation] = useState("India");
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [ats, setAts] = useState<any>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [ats, setAts] = useState<AtsResult | null>(null);
   const [resumeUploaded, setResumeUploaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [atsLoading, setAtsLoading] = useState(false);
 
+  const getErrorMessage = (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      return error.response?.data?.detail || error.message || "Request failed";
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return "Something went wrong";
+  };
+
   const uploadResume = async () => {
-    if (!file) return alert("Please select your resume PDF");
+    if (!file) {
+      alert("Please select your resume PDF");
+      return;
+    }
 
-    const formData = new FormData();
-    formData.append("file", file);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
-    await axios.post(`${API}/upload-resume`, formData);
-    setResumeUploaded(true);
-    alert("Resume uploaded successfully");
+      const res = await axios.post(`${API}/upload-resume`, formData);
+
+      setResumeUploaded(true);
+      alert(res.data.message || "Resume uploaded successfully");
+    } catch (error: unknown) {
+      console.error("UPLOAD ERROR:", error);
+      alert(getErrorMessage(error));
+    }
   };
 
   const checkAtsScore = async () => {
-    if (!resumeUploaded) return alert("Upload resume first");
-    if (!role) return alert("Enter job role first");
+    if (!resumeUploaded) {
+      alert("Upload resume first");
+      return;
+    }
 
-    setAtsLoading(true);
+    if (!role) {
+      alert("Enter job role first");
+      return;
+    }
 
-    const formData = new FormData();
-    formData.append("job_role", role);
-    formData.append("job_description", "");
+    try {
+      setAtsLoading(true);
 
-    const res = await axios.post(`${API}/ats-score`, formData);
-    setAts(res.data.ats);
+      const formData = new FormData();
+      formData.append("job_role", role);
+      formData.append("job_description", "");
 
-    setAtsLoading(false);
+      const res = await axios.post(`${API}/ats-score`, formData);
+      setAts(res.data.ats);
+    } catch (error: unknown) {
+      console.error("ATS ERROR:", error);
+      alert(getErrorMessage(error));
+    } finally {
+      setAtsLoading(false);
+    }
   };
 
   const searchJobs = async () => {
-    if (!role) return alert("Enter job role");
+    if (!role) {
+      alert("Enter job role");
+      return;
+    }
 
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const formData = new FormData();
-    formData.append("role", role);
-    formData.append("location", location);
+      const formData = new FormData();
+      formData.append("role", role);
+      formData.append("location", location);
 
-    const res = await axios.post(`${API}/search-jobs`, formData);
-    setJobs(res.data.jobs);
-
-    setLoading(false);
+      const res = await axios.post(`${API}/search-jobs`, formData);
+      setJobs(res.data.jobs || []);
+    } catch (error: unknown) {
+      console.error("SEARCH ERROR:", error);
+      alert(getErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const sendResume = async (job: any) => {
-    if (!resumeUploaded) return alert("Upload resume first");
+  const sendResume = async (job: Job) => {
+    if (!resumeUploaded) {
+      alert("Upload resume first");
+      return;
+    }
 
     const hrEmail = job.hr_email || prompt("Enter HR email:");
     if (!hrEmail) return;
@@ -80,17 +156,25 @@ export default function Home() {
     const confirmSend = confirm(`Send your resume to ${hrEmail}?`);
     if (!confirmSend) return;
 
-    const formData = new FormData();
-    formData.append("hr_email", hrEmail);
-    formData.append("company", job.company || "Company");
-    formData.append("role", job.title || role);
+    try {
+      const formData = new FormData();
+      formData.append("hr_email", hrEmail);
+      formData.append("company", job.company || "Company");
+      formData.append("role", job.title || role);
 
-    const res = await axios.post(`${API}/send-resume`, formData);
-    alert(res.data.message);
+      const res = await axios.post(`${API}/send-resume`, formData);
+      alert(res.data.message || "Resume sent successfully");
+    } catch (error: unknown) {
+      console.error("SEND ERROR:", error);
+      alert(getErrorMessage(error));
+    }
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#020617] text-white">
+    <main
+      suppressHydrationWarning
+      className="min-h-screen overflow-hidden bg-[#020617] text-white"
+    >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,#2563eb55,transparent_35%),radial-gradient(circle_at_top_right,#9333ea55,transparent_35%),radial-gradient(circle_at_bottom,#14b8a655,transparent_35%)]" />
 
       <section className="relative max-w-7xl mx-auto px-6 py-10">
@@ -205,9 +289,21 @@ export default function Home() {
         </motion.div>
 
         <div className="grid md:grid-cols-3 gap-5 mb-10">
-          <InfoCard icon={<ShieldCheck />} title="Safe Apply" text="No LinkedIn botting. You manually open job links." />
-          <InfoCard icon={<Brain />} title="AI ATS Score" text="OpenAI analyzes resume quality for your target role." />
-          <InfoCard icon={<Mail />} title="HR Email" text="Send resume only after your confirmation." />
+          <InfoCard
+            icon={<ShieldCheck />}
+            title="Safe Apply"
+            text="No LinkedIn botting. You manually open job links."
+          />
+          <InfoCard
+            icon={<Brain />}
+            title="AI ATS Score"
+            text="OpenAI analyzes resume quality for your target role."
+          />
+          <InfoCard
+            icon={<Mail />}
+            title="HR Email"
+            text="Send resume only after your confirmation."
+          />
         </div>
 
         {atsLoading && (
@@ -225,9 +321,7 @@ export default function Home() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8">
               <div>
                 <p className="text-slate-400 mb-2">AI ATS Result</p>
-                <h2 className="text-4xl font-black">
-                  {ats.ats_score}/100
-                </h2>
+                <h2 className="text-4xl font-black">{ats.ats_score}/100</h2>
                 <p className="text-blue-300 font-semibold mt-2">
                   {ats.match_level}
                 </p>
@@ -245,7 +339,10 @@ export default function Home() {
 
             <div className="grid md:grid-cols-3 gap-6">
               <ResultBox title="Strengths" items={ats.strengths} />
-              <ResultBox title="Missing Keywords" items={ats.missing_keywords} />
+              <ResultBox
+                title="Missing Keywords"
+                items={ats.missing_keywords}
+              />
               <ResultBox title="Improvements" items={ats.improvements} />
             </div>
           </motion.div>
@@ -260,7 +357,7 @@ export default function Home() {
         <div className="grid md:grid-cols-2 gap-6">
           {jobs.map((job, index) => (
             <motion.div
-              key={index}
+              key={`${job.link}-${index}`}
               initial={{ opacity: 0, y: 25 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.04 }}
@@ -273,7 +370,7 @@ export default function Home() {
                 </div>
 
                 <span className="h-fit bg-white/10 text-xs px-3 py-2 rounded-full">
-                  {job.source}
+                  {job.source || "Job"}
                 </span>
               </div>
 
@@ -311,7 +408,7 @@ export default function Home() {
   );
 }
 
-function InfoCard({ icon, title, text }: any) {
+function InfoCard({ icon, title, text }: InfoCardProps) {
   return (
     <div className="bg-white/10 border border-white/20 rounded-3xl p-6 backdrop-blur-xl">
       <div className="text-blue-300 mb-4">{icon}</div>
@@ -321,13 +418,13 @@ function InfoCard({ icon, title, text }: any) {
   );
 }
 
-function ResultBox({ title, items }: any) {
+function ResultBox({ title, items = [] }: ResultBoxProps) {
   return (
     <div className="bg-black/30 rounded-3xl p-5 border border-white/10">
       <h3 className="font-bold text-lg mb-4">{title}</h3>
       <ul className="space-y-2 text-sm text-slate-300">
-        {items?.map((item: string, index: number) => (
-          <li key={index}>• {item}</li>
+        {items.map((item, index) => (
+          <li key={`${item}-${index}`}>• {item}</li>
         ))}
       </ul>
     </div>
