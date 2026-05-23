@@ -19,7 +19,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://autojob-ai-mohammedyounus.vercel.app/",
+        "https://autojob-ai-mohammedyounus.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
